@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Calling App</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="/js/socket.io.js" defer></script>
+    <script src="/js/main.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+</head>
+<body class="bg-gray-100 font-sans flex flex-col h-screen">
+
+    <main class="flex flex-1">
+        <!-- Contacts Sidebar -->
+        <aside class="w-72 bg-white border-r p-4 shadow-md">
+            <h1 class="text-2xl font-semibold mb-4 text-gray-800">Contacts</h1>
+            <ul id="allusers" class="space-y-2 text-gray-700"></ul>
+        </aside>
+
+        <!-- Video Call Section -->
+        <section class="flex-1 flex flex-col items-center justify-center p-6 space-y-6">
+            <div class="w-full max-w-md">
+                <input id="username" type="text" placeholder="Enter Username"
+                    class="w-full h-12 p-4 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <button id="create-user"
+                    class="w-full h-12 mt-3 bg-green-600 text-white rounded-lg text-lg font-semibold hover:bg-green-700 transition">
+                    Create
+                </button>
+            </div>
+
+            <div class="space-x-4">
+                <button id="share-screen-btn"
+                    class="bg-blue-500 text-white py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition">
+                    Share Screen
+                </button>
+                <button id="stop-screen-share-btn"
+                    class="bg-red-500 text-white py-2 px-4 rounded-lg shadow-md hover:bg-red-700 transition">
+                    Stop Screen
+                </button>
+            </div>
+
+            <div class="w-full flex flex-col items-center space-y-4">
+                <div class="flex gap-8 w-full max-w-4xl">
+                    <!-- Local Video -->
+                    <div class="relative w-1/2 h-80 bg-black rounded-lg overflow-hidden shadow-lg">
+                        <video id="localVideo" autoplay playsinline class="w-full h-full"></video>
+                        
+                    </div>
+                                        <div id="captionBox"
+                        class="absolute bottom-[-10px] left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white text-lg font-semibold p-3 rounded-lg h-11 w-3/5 flex justify-between items-center shadow-lg">
+                        <p id="predictionText" class="pl-4 flex-grow">Caption: ...</p>
+                        <button id="capture-btn"
+                            class="bg-purple-600 text-white py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition">
+                            Predict Sign
+                        </button>
+                        <button id="clear-btn"
+                                class="bg-red-600 text-white py-2 px-3 rounded-lg shadow-md hover:bg-red-700 transition">
+                                Clear
+                            </button>
+                    </div>
+
+
+                
+                    <!-- Remote Video (Kept in the same position) -->
+                    <div class="w-1/2 h-80 bg-black rounded-lg overflow-hidden shadow-lg">
+                        <video id="remoteVideo" autoplay playsinline class="w-full h-full"></video>
+                    </div>
+                </div>
+
+                <div class="flex gap-4">
+                    <button id="mute-audio-btn"
+                        class="bg-gray-800 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition shadow-md">
+                        Mute
+                    </button>
+                    <button id="toggle-video-btn"
+                        class="bg-gray-800 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition shadow-md">
+                        Video Off
+                    </button>
+                </div>
+
+                <button id="end-call-btn"
+                    class="hidden bg-red-600 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-lg hover:bg-red-700 transition">
+                    <img src="/images/phone-disconnect.png" alt="End Call" class="w-8 h-8" />
+                </button>
+            </div>
+        </section>
+    </main>
+
+    
+    <!-- Hand Tracking Canvas -->
+    <canvas id="handCanvas" class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
+
+    <!-- Hidden Canvas for Capturing Frames -->
+    <canvas id="canvas" class="hidden"></canvas>
+
+   <!-- "Go to Video Upload Section" Button (TOP RIGHT) -->
+<button onclick="window.open('/page2', '_blank')"
+class="fixed top-4 right-4 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md text-lg font-semibold hover:bg-blue-700 transition">
+Go to Video Upload Section
+</button>
+
+<!-- Capture Button (Below Local Video) -->
+
+
+</body>
+
+
+
+
+
+<script>
+const video = document.getElementById("localVideo");
+const canvas = document.createElement("canvas");
+const ctx = canvas.getContext("2d");
+const predictionText = document.getElementById("predictionText");
+
+let sentence = [];
+let lastWord = "";  // Stores last word to avoid duplication
+
+
+        let isTabActive = true;
+
+            // Detect when the user switches tabs
+            document.addEventListener("visibilitychange", () => {
+                isTabActive = !document.hidden; // `false` when tab is inactive, `true` when active
+            });
+
+// Function for Text-to-Speech (TTS)
+function speakText(text) {
+            if ('speechSynthesis' in window) {
+                let speech = new SpeechSynthesisUtterance(text);
+                speech.lang = 'en'; // Set language                //hi=hindi en = english
+                speech.rate = 1; // Normal speed
+                speech.volume = 1; // Max volume
+                window.speechSynthesis.speak(speech);
+            } else {
+                console.log("Text-to-Speech not supported in this browser.");
+            }
+        }
+
+async function sendFrame() {
+    if (!video || video.readyState !== 4) return;
+    if (!video || !video.srcObject || video.readyState < 2) {
+        console.warn("Video not ready yet...");
+        return;
+    }
+    // Capture the video frame
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Convert frame to base64
+    const frameData = canvas.toDataURL("image/jpeg").split(",")[1];
+
+    try {
+        const response = await fetch("http://127.0.0.1:5000/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: `frame=${encodeURIComponent(frameData)}`,
+        });
+
+        const result = await response.json();
+        let newWord = result.prediction.trim();
+
+        // Ignore "No hands detected"
+        if (newWord && newWord !== "None" && newWord.toLowerCase() !== "no hands detected") {
+            // Add word to sentence only if it's different from the last one
+            if (newWord !== lastWord) {
+                sentence.push(newWord);
+                lastWord = newWord;  // Update last word to prevent immediate repetition
+                speakText(newWord);
+            }
+        }
+
+        // Display the full sentence
+        predictionText.innerText = `Caption: ${sentence.join(" ")}`;
+        //gradual remove is not working so i stopped
+        
+
+    } catch (error) {
+        console.error("Error sending frame:", error);
+    }
+}
+
+document.getElementById("clear-btn").addEventListener("click", function () {
+    document.getElementById("predictionText").innerText = "Caption: ..."; // Reset text
+    sentence = []; // Clear stored words
+    lastWord = ""; // Reset last word tracking
+});
+
+
+// Start continuous captioning
+function startCaptions() {
+    setInterval(sendFrame, 2000);  // Capture every 2 seconds
+}
+
+// Start captions when the page loads
+window.onload = startCaptions;
+
+</script>
+
+</html>

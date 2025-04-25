@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Language Trainer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center h-screen">
+    <h1 class="text-2xl font-bold mb-4">Sign Language Model Trainer</h1>
+    
+    <button id="start-recording" class="bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md text-lg font-semibold hover:bg-blue-700 transition">
+        Start Recording Signs
+    </button>
+    
+    <button id="train-model" class="bg-green-600 text-white px-6 py-3 rounded-lg shadow-md text-lg font-semibold hover:bg-green-700 transition mt-4">
+        Train Model
+    </button>
+    
+    <p id="status" class="text-lg font-semibold mt-4 text-gray-700"></p>
+    
+    <script>
+        document.getElementById("start-recording").addEventListener("click", async () => {
+            document.getElementById("status").innerText = "Recording signs...";
+            try {
+                await fetch("/start-recording");
+                document.getElementById("status").innerText = "Recording complete!";
+            } catch (error) {
+                document.getElementById("status").innerText = "Error starting recording!";
+            }
+        });
+        
+        document.getElementById("train-model").addEventListener("click", async () => {
+            document.getElementById("status").innerText = "Training model...";
+            try {
+                await fetch("/train-model");
+                document.getElementById("status").innerText = "Model training complete!";
+            } catch (error) {
+                document.getElementById("status").innerText = "Error training model!";
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Captioning (Multi-Language)</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+</head>
+<body class="bg-gray-100 font-sans flex flex-col items-center justify-center min-h-screen p-6">
+
+    <h1 class="text-2xl font-bold text-gray-800 mb-4">Upload a Video for Captioning</h1>
+
+    <!-- Language Selector -->
+    <label class="mb-2 font-semibold">Select Language:</label>
+    <select id="languageSelect"
+            class="mb-4 px-4 py-2 border border-gray-300 rounded-lg shadow-md">
+        <option value="en">English</option>
+        <option value="mr">Marathi</option>
+        <option value="hi">Hindi</option>
+    </select>
+
+    <!-- Video Upload -->
+    <input type="file" id="videoInput" accept="video/*"
+           class="mb-4 px-4 py-2 border border-gray-300 rounded-lg shadow-md">
+    
+    <!-- Video Preview -->
+    <video id="videoPlayer" controls class="w-full max-w-2xl bg-black rounded-lg shadow-lg"></video>
+
+    <!-- Captions -->
+    <div id="captionBox"
+         class="mt-4 p-4 bg-black bg-opacity-70 text-white text-lg font-semibold rounded-lg shadow-lg w-full max-w-2xl text-center">
+        <p id="predictionText">Captions will appear here...</p>
+    </div>
+
+    <!-- Hidden Canvas for Frame Capture -->
+    <canvas id="canvas" class="hidden"></canvas>
+    
+    <!-- Go Back Button -->
+    <button onclick="goBack()"
+            class="mt-6 px-6 py-3 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition">
+        Go Back to Video Call
+    </button>
+
+    <button onclick="window.open('/page3', '_blank')"
+            class="fixed top-4 right-4 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md text-lg font-semibold hover:bg-blue-700 transition">
+        Go to Add A Sign
+    </button>
+
+    <script>
+        //google api : https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=es&dt=t&q=Hello
+
+        const videoInput = document.getElementById("videoInput");
+        const videoPlayer = document.getElementById("videoPlayer");
+        const predictionText = document.getElementById("predictionText");
+        const local =" " ;
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        const languageSelect = document.getElementById("languageSelect");
+
+        let sentence = [];
+        let lastWord = "";
+
+        let isTabActive = true;
+
+            // Detect when the user switches tabs
+            document.addEventListener("visibilitychange", () => {
+                isTabActive = !document.hidden; // `false` when tab is inactive, `true` when active
+            });
+
+
+        // Function for Text-to-Speech (TTS)
+        function speakText(text, lang) {
+            if ('speechSynthesis' in window) {
+                let speech = new SpeechSynthesisUtterance(text);
+                speech.lang = lang; // Set language
+                speech.rate = 1; // Normal speed
+                speech.volume = 1; // Max volume
+                window.speechSynthesis.speak(speech);
+            } else {
+                console.log("Text-to-Speech not supported in this browser.");
+            }
+        }
+
+        // Translate text using Google Translate API
+        async function translateText(text, targetLang) {
+    try {
+        let response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`);
+        let result = await response.json();
+        return result[0][0][0];  // Get the translated word
+    } catch (error) {
+        console.error("Translation error:", error);
+        return text; // Fallback to original text
+    }
+}
+
+
+        // When a video is uploaded
+        videoInput.addEventListener("change", function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const videoURL = URL.createObjectURL(file);
+                videoPlayer.src = videoURL;
+                videoPlayer.load();
+            }
+        });
+
+        // Capture frames & send to backend every second
+        function processVideo() {
+            if (!videoPlayer || videoPlayer.paused || videoPlayer.ended) return;
+
+            // Capture frame
+            canvas.width = videoPlayer.videoWidth;
+            canvas.height = videoPlayer.videoHeight;
+            ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
+
+            // Convert frame to base64
+            const frameData = canvas.toDataURL("image/jpeg").split(",")[1];
+
+            // const apiBaseURL = "https://f684-2409-40c0-36-7aad-257f-326e-e5a2-fedb.ngrok-free.app"; // Update with ngrok URL
+            // fetch(`${apiBaseURL}/predict`, { method: "POST",
+            //     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            //     body: `frame=${encodeURIComponent(frameData)}`,});
+
+
+            //Send frame to Flask backend
+            fetch("http://127.0.0.1:5000/predict", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `frame=${encodeURIComponent(frameData)}`,
+            })
+            .then(response => response.json())
+            .then(async result => {
+                if (!isTabActive) return; // Don't process results if tab is inactive
+                let newWord = result.prediction.trim();
+
+                if (newWord && newWord !== "None" && newWord.toLowerCase() !== "no hands detected") {
+                    if (newWord !== lastWord) {
+                        sentence.push(newWord);
+                        lastWord = newWord;
+
+                        // Translate the word
+                        let selectedLang = languageSelect.value;
+                        let translatedWord = await translateText(newWord, selectedLang);
+
+                        // Update UI with translated word
+                        predictionText.innerText = `Caption: ${sentence.join(" ")} (${translatedWord})`;
+                        
+                        // Speak the translated word
+                        speakText(translatedWord, selectedLang);
+                    }
+                }
+            })
+            .catch(error => console.error("Error sending frame:", error));
+        }
+
+        // Start capturing frames when video starts playing
+        videoPlayer.addEventListener("play", () => {
+            setInterval(processVideo, 1000);
+        });
+
+        // Go Back to Video Call
+        function goBack() {
+            if (window.opener) {
+                window.close(); // If opened in a new tab, close it
+            } else {
+                window.location.href = "/"; // If in the same tab, navigate back
+            }
+        }
+    </script>
+
+</body>
+</html>
