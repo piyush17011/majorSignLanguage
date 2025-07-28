@@ -17,6 +17,7 @@ let isScreenSharing = false;  // Flag to track screen sharing status
 let caller = [];  // Caller info
 let remoteScreenStream = null;  // Remote screen share stream
 let isRemoteScreenSharing = false; // Flag to track remote screen sharing status
+let dataChannel = null;
 
 const socket = io();
 
@@ -36,7 +37,13 @@ const PeerConnection = (function() {
                 peerConnection.addTrack(track, localStream);
             });
         }
-
+   // Data channel for captions
+    dataChannel = peerConnection.createDataChannel("captionChannel");
+    dataChannel.onopen = () => console.log("Data channel opened");
+    dataChannel.onmessage = (event) => {
+        // Display incoming caption
+        remoteCaptionText.innerText = `Remote: ${event.data}`;
+    };
         // Listen for remote stream
         peerConnection.ontrack = function(event) {
             remoteVideo.srcObject = event.streams[0];
@@ -64,6 +71,35 @@ const PeerConnection = (function() {
         }
     };
 })();
+
+function setupDataChannelHandlers(channel) {
+    channel.onopen = () => {
+        console.log("Data channel opened");
+    };
+
+    channel.onmessage = (event) => {
+        const { caption } = JSON.parse(event.data);
+        const captionsDiv = document.getElementById("captions");
+        if (captionsDiv) {
+            const p = document.createElement("p");
+
+            
+            p.innerHTML = `<strong>Peer:</strong> ${caption}`;
+            captionsDiv.appendChild(p);
+        }
+    };
+
+    channel.onerror = (err) => {
+        console.error("Data channel error:", err);
+    };
+}
+
+function sendCaption(captionText) {
+    if (dataChannel && dataChannel.readyState === "open") {
+        dataChannel.send(JSON.stringify({ caption: captionText }));
+    }
+}
+
 
 // Handle user joining
 createUserBtn.addEventListener("click", () => {
@@ -103,16 +139,33 @@ socket.on("joined", (allusers) => {
 });
 
 // Handle offer (receiver)
+// socket.on("offer", async ({ from, to, offer }) => {
+//     const pc = PeerConnection.getInstance();
+//     await pc.setRemoteDescription(offer);
+//     const answer = await pc.createAnswer();
+//     await pc.setLocalDescription(answer);
+//     socket.emit("answer", { from, to, answer: pc.localDescription });
+
+//     caller = [from, to];
+//     endCallBtn.style.display = "block"; // ✅ SHOW END CALL BUTTON
+// });
 socket.on("offer", async ({ from, to, offer }) => {
     const pc = PeerConnection.getInstance();
+
+    pc.ondatachannel = (event) => {
+        dataChannel = event.channel;
+        setupDataChannelHandlers(dataChannel); // Define below
+    };
+
     await pc.setRemoteDescription(offer);
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     socket.emit("answer", { from, to, answer: pc.localDescription });
 
     caller = [from, to];
-    endCallBtn.style.display = "block"; // ✅ SHOW END CALL BUTTON
+    endCallBtn.style.display = "block";
 });
+
 
 // Handle answer (caller)
 socket.on("answer", async ({ from, to, answer }) => {
@@ -122,6 +175,22 @@ socket.on("answer", async ({ from, to, answer }) => {
     caller = [from, to];
     endCallBtn.style.display = "block"; // ✅ SHOW END CALL BUTTON
 });
+// Listen for the caption event from other users
+
+// Listen for the caption event (from User A)
+// Listen for the caption event
+// socket.on('caption', (data) => {
+//     // Display the caption with the username of the sender
+//     predictionText.innerText = `${data.username}: ${data.caption}`;
+// });
+// Listen for the caption event
+// socket.on('caption', (data) => {
+//     console.log("Received Caption:", data.username, data.caption);
+//     // Update the text of the predictionText element with username and caption
+//     predictionText.innerText = `${data.username}: ${data.caption}`;
+// });
+
+
 
 // Handle ICE candidates
 socket.on("icecandidate", async (candidate) => {
@@ -134,15 +203,42 @@ socket.on("call-ended", () => {
     endCall();
 });
 
+
+  
+
+socket.on('caption', (data) => {
+    // Update the predictionText element with the received caption
+    console.log(caption);
+    console.log(data.caption);
+    predictionText.innerText = `Caption: ${data.caption}`;
+});
+
 // Start call function
+// const startCall = async (user) => {
+//     const pc = PeerConnection.getInstance();
+//     const offer = await pc.createOffer();
+//     await pc.setLocalDescription(offer);
+//     socket.emit("offer", { from: username.value, to: user, offer: pc.localDescription });
+
+//     endCallBtn.style.display = "block"; // ✅ SHOW END CALL BUTTON FOR CALLER
+// };
 const startCall = async (user) => {
     const pc = PeerConnection.getInstance();
+
+    // Create the data channel before offer
+    dataChannel = pc.createDataChannel("captions");
+
+    setupDataChannelHandlers(dataChannel); // Define below
+
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
+
     socket.emit("offer", { from: username.value, to: user, offer: pc.localDescription });
 
-    endCallBtn.style.display = "block"; // ✅ SHOW END CALL BUTTON FOR CALLER
+    endCallBtn.style.display = "block";
 };
+
+
 
 // End call function
 const endCall = () => {
@@ -285,6 +381,7 @@ socket.on("remote-screen-share", (stream) => {
 socket.on("stop-remote-screen-share", () => {
     remoteVideo.srcObject = remoteStream;  // Show webcam video again
 });
+
 
 // Start local video (webcam)
 async function startMyVideo() {

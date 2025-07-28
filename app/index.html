@@ -52,17 +52,23 @@
                     </div>
                                         <div id="captionBox"
                         class="absolute bottom-[-10px] left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white text-lg font-semibold p-3 rounded-lg h-11 w-3/5 flex justify-between items-center shadow-lg">
+                        
                         <p id="predictionText" class="pl-4 flex-grow">Caption: ...</p>
-                        <button id="capture-btn"
-                            class="bg-purple-600 text-white py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition">
-                            Predict Sign
-                        </button>
+
+                        
                         <button id="clear-btn"
                                 class="bg-red-600 text-white py-2 px-3 rounded-lg shadow-md hover:bg-red-700 transition">
                                 Clear
                             </button>
                     </div>
+                   
 
+
+                <!-- Remote Caption Box -->
+<!-- <div id="remoteCaptionBox"
+class="absolute bottom-10 right-10 bg-black bg-opacity-70 text-white text-lg font-semibold p-3 rounded-lg h-11 w-3/5 flex justify-between items-center shadow-lg">
+<p id="RpredictionText" class="pl-4 flex-grow">Remote Caption: ...</p>
+</div> -->
 
                 
                     <!-- Remote Video (Kept in the same position) -->
@@ -98,8 +104,13 @@
     <canvas id="canvas" class="hidden"></canvas>
 
    <!-- "Go to Video Upload Section" Button (TOP RIGHT) -->
+   
+   <button onclick="location.href='/'"
+class="fixed top-20 right-10 bg-red-600 text-white px-6 py-3 rounded-lg shadow-md text-lg font-semibold hover:bg-blue-700 transition">
+Home
+</button>
 <button onclick="window.open('/page2', '_blank')"
-class="fixed top-4 right-4 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md text-lg font-semibold hover:bg-blue-700 transition">
+class="fixed top-4 right-7 bg-orange-600 text-white px-6 py-3 rounded-lg shadow-md text-lg font-semibold hover:bg-blue-700 transition">
 Go to Video Upload Section
 </button>
 
@@ -113,9 +124,12 @@ Go to Video Upload Section
 
 
 <script>
-const video = document.getElementById("localVideo");
+const video = document.getElementById("remoteVideo");
 const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d");
+const remoteCanvas = document.createElement("canvas");
+const remoteCtx = remoteCanvas.getContext("2d");
+let remoteCaptionText = document.getElementById("remoteCaptionText");
 const predictionText = document.getElementById("predictionText");
 
 let sentence = [];
@@ -141,6 +155,99 @@ function speakText(text) {
                 console.log("Text-to-Speech not supported in this browser.");
             }
         }
+
+//         async function sendFrame() {
+//     if (!localVideo || localVideo.readyState !== 4) return;
+//     if (!localVideo || !localVideo.srcObject || localVideo.readyState < 2) {
+//         console.warn("Local video not ready yet...");
+//         return;
+//     }
+    
+//     // Capture the local video frame
+//     canvas.width = localVideo.videoWidth;
+//     canvas.height = localVideo.videoHeight;
+//     ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
+//     const frameData = canvas.toDataURL("image/jpeg").split(",")[1];
+    
+//     // Send frame for caption prediction (local stream)
+//     try {
+//         const response = await fetch("http://127.0.0.1:5000/predict", {
+//             method: "POST",
+//             headers: { "Content-Type": "application/x-www-form-urlencoded" },
+//             body: `frame=${encodeURIComponent(frameData)}`,
+//         });
+
+//         const result = await response.json();
+//         let newWord = result.prediction.trim();
+        
+//         if (newWord && newWord !== "None" && newWord.toLowerCase() !== "no hands detected") {
+//             if (newWord !== lastWord) {
+//                 sentence.push(newWord);
+//                 lastWord = newWord;
+//                 speakText(newWord);
+//             }
+//         }
+
+//         // Update caption box
+//         predictionText.innerText = `Caption: ${sentence.join(" ")}`;
+//     } catch (error) {
+//         console.error("Error sending frame:", error);
+//     }
+// }
+    
+
+//         async function sendFrame() {
+//     if (!video || video.readyState !== 4) return;
+//     if (!video || !video.srcObject || video.readyState < 2) {
+//         console.warn("Video not ready yet...");
+//         return;
+//     }
+//     // Capture the video frame
+//     canvas.width = video.videoWidth;
+//     canvas.height = video.videoHeight;
+//     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+//     // Convert frame to base64
+//     const frameData = canvas.toDataURL("image/jpeg").split(",")[1];
+
+//     try {
+//         const response = await fetch("http://127.0.0.1:5000/predict", {
+//             method: "POST",
+//             headers: { "Content-Type": "application/x-www-form-urlencoded" },
+//             body: `frame=${encodeURIComponent(frameData)}`,
+//         });
+
+//         const result = await response.json();
+//         let newWord = result.prediction.trim();
+
+//         // Ignore "No hands detected"
+//         if (newWord && newWord !== "None" && newWord.toLowerCase() !== "no hands detected") {
+//             // Add word to sentence only if it's different from the last one
+//             if (newWord !== lastWord) {
+//                 sentence.push(newWord);
+//                 lastWord = newWord;  // Update last word to prevent immediate repetition
+//                 speakText(newWord);
+//             }
+//         }
+
+//         // Send the caption with the username
+//         // Send the caption along with the username
+//         console.log("Sending Caption:", username.value, sentence.join(" "));
+
+// socket.emit('caption', {
+//     caption: sentence.join(" "),  // The actual caption
+//     username: username.value // Include the username here
+// });
+
+
+//         // Display the full sentence
+//         predictionText.innerText = `Caption: ${sentence.join(" ")}`;
+
+//     } catch (error) {
+//         console.error("Error sending frame:", error);
+//     }
+// }
+
 
 async function sendFrame() {
     if (!video || video.readyState !== 4) return;
@@ -176,8 +283,25 @@ async function sendFrame() {
             }
         }
 
+         // Update the caption on the screen
+         predictionText.innerText = `Caption: ${sentence.join(" ")}`;
+
+        // Emit the updated caption to the server
+        // socket.emit('caption', { caption: sentence.join(" ") });  // Emit caption to other users4
+        // Emit the caption with the username (User A)
+// Emit to everyone including self (for consistency)
+        socket.emit("caption-update", {
+        from: username.value,
+        caption: sentence.join(" ")
+        });
+        // Send caption over data channel if available
+       if (dataChannel && dataChannel.readyState === "open") {
+           dataChannel.send(sentence.join(" "));
+        }
+
+
         // Display the full sentence
-        predictionText.innerText = `Caption: ${sentence.join(" ")}`;
+        // predictionText.innerText = `Caption: ${sentence.join(" ")}`;
         //gradual remove is not working so i stopped
         
 

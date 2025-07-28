@@ -21,17 +21,24 @@ app.use(express.static("public"));
 // handle incoming http request
 app.get("/", (req, res) => {
     console.log("GET Request /");
+    res.sendFile(join(__dirname + "/app/home.html"));
+});
+app.get("/page1", (req, res) => {
+    console.log("GET Request /");
     res.sendFile(join(__dirname + "/app/index.html"));
 });
-
+app.get("/about", (req, res) => {
+    console.log("GET Request /");
+    res.sendFile(join(__dirname + "/app/about.html"));
+});
 app.get("/page2", (req, res) => {
     console.log("GET Request /page2");
-    res.sendFile(join(__dirname + "/app/page2.html"));
+    res.sendFile(join(__dirname + "/app/videoUpload.html"));
 });
 
 app.get("/page3", (req, res) => {
-    console.log("GET Request /page2");
-    res.sendFile(join(__dirname + "/app/page3.html"));
+    console.log("GET Request /page3");
+    res.sendFile(join(__dirname + "/app/.html"));
 });
 
 // handle socket connections
@@ -62,12 +69,17 @@ io.on("connection", (socket) => {
         io.to(allusers[from].id).emit("call-ended", caller);
         io.to(allusers[to].id).emit("call-ended", caller);
     })
-
+    
+      
     socket.on("icecandidate", candidate => {
         console.log({ candidate });
         //broadcast to other peers
         socket.broadcast.emit("icecandidate", candidate);
     }); 
+    socket.on("caption-update", (data) => {
+        socket.broadcast.emit("caption-update", data);
+      });
+      
 })
 
 server.listen(9000, () => {

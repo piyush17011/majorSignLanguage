@@ -176,6 +176,20 @@ ul li {
     border-radius: 5px;
     font-size: 20px;
 }
+#predictionText {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.7);  /* Semi-transparent black background */
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 10px;
+    border-radius: 8px;
+    width: 80%;
+    text-align: center;
+}
 
 
 #canvas {
